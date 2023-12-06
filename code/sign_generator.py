@@ -14,7 +14,7 @@ from torchvision.io import read_image, write_png
 from skimage.color import rgb2hsv, hsv2rgb
 
 
-class SignGenerator(object):
+class SignEmbedder(object):
     """
     Class for synthetic data generation
     :param background_path: path to folder that contains background images
@@ -54,7 +54,7 @@ class SignGenerator(object):
         return icon.clip(0., 1.)
 
 
-def generate_one_icon(args):
+def generate_synt_sample(args):
     """
     Generate synthetic for one class
     :param args: [path to file with an icon, path to output folder, path to backgrounds folder, num of examples per class]
@@ -136,7 +136,7 @@ def generate_one_icon(args):
         )(img)
 
         # set background
-        sign_gen = SignGenerator(path_to_backgrounds)
+        sign_gen = SignEmbedder(path_to_backgrounds)
         """
             we have to set background under the image by the values of mask
             but we have to modify mask so that it has the same position as an image after all transformations
@@ -173,4 +173,4 @@ def generate_all_data(output_folder, icons_path, background_path, samples_per_cl
     with ProcessPoolExecutor(8) as executor:
         params = [[os.path.join(icons_path, icon_file), output_folder, background_path, samples_per_class]
                   for icon_file in os.listdir(icons_path)]
-        list(tqdm.tqdm(executor.map(generate_one_icon, params)))
+        list(tqdm.tqdm(executor.map(generate_synt_sample, params)))

@@ -127,7 +127,7 @@ class TestData(torch.utils.data.Dataset):
         return img, os.path.join("Test", path), cls_idx
 
 
-class CustomBatchSampler(torch.utils.data.sampler.Sampler[typing.List[int]]):
+class BatchSampler(torch.utils.data.sampler.Sampler[typing.List[int]]):
     """
     Class for batch samling with maintaining num of classes and examples of each class in the batch
     :param data_source: CustomDataset
@@ -161,7 +161,7 @@ class CustomBatchSampler(torch.utils.data.sampler.Sampler[typing.List[int]]):
         return self.n_batches
 
 
-class IndexSampler(torch.utils.data.sampler.Sampler[int]):
+class SamplerForKNN(torch.utils.data.sampler.Sampler[int]):
     """
     Class for sampling images in index for K-NN
     :param data_source: CustomDataset synt_data

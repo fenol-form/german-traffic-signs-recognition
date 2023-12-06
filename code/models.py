@@ -13,7 +13,7 @@ import json
 from sklearn.neighbors import KNeighborsClassifier
 
 from .config import CLASSES_CNT
-from .data_management import DatasetGTSRB, CustomBatchSampler, IndexSampler
+from .data_management import DatasetGTSRB, BatchSampler, SamplerForKNN
 from .data_management import TestData
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -178,13 +178,13 @@ def train_synt_classifier(train_path, syntdata_path, output_path, classes_json="
     return model
 
 
-class FeaturesLoss(torch.nn.Module):
+class ContrastiveLoss(torch.nn.Module):
     """
     Contrastive Loss for embeddings.
     """
 
     def __init__(self, margin: float) -> None:
-        super(FeaturesLoss, self).__init__()
+        super(ContrastiveLoss, self).__init__()
         self.margin = margin
         self.eps = 1e-9
 
@@ -232,7 +232,7 @@ class EmbeddingNetwork(SimpleClassifier):
         self.internal_features = 1024
 
         # set losses
-        self.contrastive_loss = FeaturesLoss(2.0)
+        self.contrastive_loss = ContrastiveLoss(2.0)
         self.contrastive_loss_weight = 0.1
         self.classification_loss = torch.nn.CrossEntropyLoss()
         self.classification_loss_weight = 1. - self.contrastive_loss_weight
@@ -289,7 +289,7 @@ class EmbeddingNetwork(SimpleClassifier):
         return self.model(x)
 
 
-def train_better_model(train_path, syntdata_path, output_path, classes_json="classes.json"):
+def train_embedding_network(train_path, syntdata_path, output_path, classes_json="classes.json", epochs=7):
     """Training classifier with Contrastive Loss on a mixture of source data and syntetic data"""
 
     # create dataset, dataloader
@@ -299,7 +299,7 @@ def train_better_model(train_path, syntdata_path, output_path, classes_json="cla
     )
     dl_train = DataLoader(
         dataset,
-        batch_sampler=CustomBatchSampler(dataset, 64, 4),
+        batch_sampler=BatchSampler(dataset, 64, 4),
         pin_memory=True,
         num_workers=4
     )
@@ -307,7 +307,7 @@ def train_better_model(train_path, syntdata_path, output_path, classes_json="cla
     # create and train model
     model = EmbeddingNetwork()
     trainer = pl.Trainer(
-        max_epochs=1,
+        max_epochs=epochs,
         callbacks=[],
         enable_checkpointing=False,
         logger=False,
@@ -321,7 +321,7 @@ def train_better_model(train_path, syntdata_path, output_path, classes_json="cla
     return model
 
 
-class ModelWithHead(torch.nn.Module):
+class KnnModel(torch.nn.Module):
     """
     Model with K-NN head
     :param n_neighbors: num of neighbours for K-NN head
@@ -356,7 +356,7 @@ class ModelWithHead(torch.nn.Module):
 
         # train
         dataset = DatasetGTSRB([synt_data_path], classes_json_path)
-        sampler = IndexSampler(dataset, examples_per_classes)
+        sampler = SamplerForKNN(dataset, examples_per_classes)
         dl_train = DataLoader(
             dataset,
             sampler=sampler,
@@ -399,7 +399,7 @@ class ModelWithHead(torch.nn.Module):
         return self.predict(imgs)
 
 
-def train_head(nn_weights_path, synt_data_path, output_path, classes_json_path, examples_per_class=20):
+def train_model_with_knn(nn_weights_path, synt_data_path, output_path, classes_json_path, examples_per_class=20):
     """
     Function for training KNN head of embedding network
     :param nn_weights_path: path to .pth of embedding network
@@ -408,7 +408,7 @@ def train_head(nn_weights_path, synt_data_path, output_path, classes_json_path, 
     :param classes_json_path: path to classes.json
     :param examples_per_class: num of elements of each class to be used in KNN training
     """
-    model = ModelWithHead(n_neighbors=1)
+    model = KnnModel(n_neighbors=1)
     model.load_nn(nn_weights_path)
     model.train_head(synt_data_path,
                      classes_json_path,
